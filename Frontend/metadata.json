@@ -1,0 +1,5 @@
+{
+  "name": "Query Mitra",
+  "description": "An interactive dashboard to query and visualize Indian survey microdata from the Ministry of Statistics and Programme Implementation (MoSPI) using SQL-like syntax and natural language, powered by Gemini.",
+  "requestFramePermissions": []
+}
