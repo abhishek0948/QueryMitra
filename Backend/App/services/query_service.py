@@ -4,10 +4,12 @@ import pandas as pd
 import math  
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
+from .sql_to_mongo_service import SQLToMongoConverter
 
 class QueryService:
     def __init__(self):
         self.db = current_app.db
+        self.sql_converter = SQLToMongoConverter()
         
     def execute_query(self, dataset_id, query, mode):
         try:
@@ -29,11 +31,11 @@ class QueryService:
             collection_name = f'data_{dataset_id}'
             
             # Handle different query modes
-            if mode == 'SQL-like':
-                return self._execute_sql_like_query(collection_name, query)
+            if mode == 'SQL':
+                return self._execute_sql_query(collection_name, query)
             elif mode == 'Natural Language':
                 return self._execute_nl_query(dataset_id, query)
-            elif mode == 'MongoDB':  # Add explicit check for MongoDB mode
+            elif mode == 'MongoDB':
                 return self._execute_aggregation_query(collection_name, query)
             else:
                 # Fallback to aggregation for other modes
@@ -95,33 +97,81 @@ class QueryService:
         except Exception as e:
             raise Exception(f'Aggregation query failed: {str(e)}')
             
-    def _execute_sql_like_query(self, collection_name, query):
-        # Simple SQL-like to MongoDB conversion logic
-        # This is a simplified example; a real implementation would need a proper SQL parser
-        query = query.lower().strip()
-        
+    def _execute_sql_query(self, collection_name, query):
+        """
+        Execute SQL query by converting it to MongoDB aggregation pipeline
+        """
         try:
-            if "select * from" in query:
-                # Handle simple SELECT * query
-                pipeline = []
-                limit_match = query.split("limit ")
-                if len(limit_match) > 1:
-                    try:
-                        limit = int(limit_match[1].strip().split()[0])
-                        pipeline.append({"$limit": limit})
-                    except:
-                        pass
-                
-                return self._execute_aggregation_query(collection_name, pipeline)
-            else:
-                # For more complex queries, return an explanation
-                return {
-                    'columns': ['query_type', 'explanation'],
-                    'rows': [{'query_type': 'SQL-like', 'explanation': 'Complex SQL queries are not supported yet'}],
-                    'query': query
+            # Convert SQL to MongoDB aggregation pipeline
+            pipeline = self.sql_converter.convert(query)
+            
+            if isinstance(self.db, dict):
+                # Handle fallback dictionary case - mock results
+                mock_result = {
+                    'columns': ['status', 'message', 'converted_query'],
+                    'rows': [{
+                        'status': 'success', 
+                        'message': 'SQL converted to MongoDB pipeline (using fallback data store)',
+                        'converted_query': str(pipeline)
+                    }],
+                    'query': query,
+                    'converted_pipeline': pipeline
                 }
+                return mock_result
+            
+            # Execute the converted pipeline
+            collection = self.db[collection_name]
+            cursor = collection.aggregate(pipeline)
+            
+            # Convert cursor to list and process results
+            results = list(cursor)
+            
+            # Extract column names and rows
+            if not results:
+                return {
+                    'columns': [], 
+                    'rows': [], 
+                    'query': query,
+                    'converted_pipeline': pipeline
+                }
+                
+            columns = list(results[0].keys())
+            
+            # Handle NaN values and process results
+            rows = []
+            for doc in results:
+                row = {}
+                for key, value in doc.items():
+                    # Skip _id field unless it's part of grouping
+                    if key == '_id' and not isinstance(value, dict):
+                        continue
+                    # Convert NaN to None (null in JSON)
+                    if isinstance(value, float) and math.isnan(value):
+                        row[key] = None
+                    else:
+                        row[key] = value
+                rows.append(row)
+            
+            return {
+                'columns': [col for col in columns if col != '_id' or any(isinstance(row.get('_id'), dict) for row in results)],
+                'rows': rows,
+                'query': query,
+                'converted_pipeline': pipeline
+            }
+            
+        except ValueError as ve:
+            # SQL parsing error
+            return {
+                'columns': ['error', 'message', 'suggestion'],
+                'rows': [{
+                    'error': 'SQL Parsing Error',
+                    'message': str(ve),
+                    'suggestion': 'Please check your SQL syntax. Supported: SELECT, WHERE, GROUP BY, ORDER BY, LIMIT'
+                }],
+                'query': query
+            }
         except Exception as e:
-            raise Exception(f'SQL-like query processing failed: {str(e)}')
+            raise Exception(f'SQL query execution failed: {str(e)}')
             
     def _execute_nl_query(self, dataset_id, query):
         """

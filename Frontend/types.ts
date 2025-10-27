@@ -13,8 +13,8 @@ export type QueryResult = {
 
 export enum QueryMode {
   NL = 'Natural Language',
-  SQL = 'SQL-like',
-  MongoDB = 'MongoDB'  // Add this new mode
+  SQL = 'SQL',
+  MongoDB = 'MongoDB'
 }
 
 export enum ViewMode {
