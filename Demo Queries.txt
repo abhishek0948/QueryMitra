@@ -1,0 +1,25 @@
+Demo Queries
+
+[
+  {
+    "$match": {
+      "Household_Size": { "$gt": 5 }
+    }
+  },
+  {
+    "$limit": 100
+  }
+]
+
+
+[
+  {
+    "$match": {
+      "Household_Size": { "$gt": 5 },
+      "Usual_Expenditure": { "$gt": 2000 }
+    }
+  },
+  {
+    "$limit": 100
+  }
+]
