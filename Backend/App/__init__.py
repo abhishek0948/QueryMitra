@@ -8,6 +8,9 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     
+    # Validate configuration
+    Config.validate_config()
+    
     # Enable CORS
     CORS(app)
     
@@ -26,7 +29,7 @@ def create_app():
         # Test the connection
         client.admin.command('ping')
         app.db = client[app.config['DATABASE_NAME']]
-        print("MongoDB Atlas connection successful")
+        print("✅ MongoDB Atlas connection successful")
     except Exception as e:
         print(f"MongoDB Atlas connection error: {str(e)}")
         print("Attempting to connect to local MongoDB...")
@@ -36,7 +39,7 @@ def create_app():
             client = MongoClient('mongodb://localhost:27017', serverSelectionTimeoutMS=2000)
             client.admin.command('ping')
             app.db = client[app.config['DATABASE_NAME']]
-            print("Local MongoDB connection successful")
+            print("✅ Local MongoDB connection successful")
         except Exception as local_e:
             print(f"Local MongoDB connection error: {str(local_e)}")
             
@@ -45,12 +48,12 @@ def create_app():
                 from pymongo_inmemory import MongoClient as InMemoryMongoClient
                 client = InMemoryMongoClient()
                 app.db = client[app.config['DATABASE_NAME']]
-                print("Using in-memory MongoDB fallback")
+                print("✅ Using in-memory MongoDB fallback")
             except Exception as inner_e:
                 print(f"Failed to create in-memory MongoDB: {str(inner_e)}")
                 # Create a simple dictionary-based fallback if all else fails
                 app.db = {"datasets": []}
-                print("Using simple dictionary fallback for database")
+                print("⚠️  Using simple dictionary fallback for database")
     
     # Create upload folder if it doesn't exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -61,8 +64,13 @@ def create_app():
     app.register_blueprint(query_routes.bp)
     
     # Add health check route
-    @app.route('/api/health', methods=['GET'])
+    @app.route('/api/health')
     def health_check():
-        return {'status': 'healthy'}, 200
+        gemini_status = "✅ Configured" if app.config.get('GEMINI_API_KEY') else "❌ Not configured"
+        return {
+            'status': 'healthy',
+            'database': 'connected' if hasattr(app, 'db') else 'disconnected',
+            'gemini_api': gemini_status
+        }
     
     return app

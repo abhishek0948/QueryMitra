@@ -1,24 +1,25 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-// const apiKey = "AIzaSyC4kL3ZkdeQJ7nhbrRmLvSM3Eg9hNKCvVU";
+// For frontend, we'll let the backend handle Gemini API calls for security
+// This maintains the existing interface but delegates to backend
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!apiKey) {
-    console.warn("GEMINI_API_KEY environment variable not set. Gemini API calls will fail.");
+    console.warn("GEMINI_API_KEY environment variable not set. Using backend for NL translation.");
 }
 
-const genAI = new GoogleGenerativeAI(apiKey || "dummy-key");
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 export const translateToMongoQuery = async (
     naturalLanguageQuery: string,
     schema: Record<string, 'string' | 'number' | 'boolean'>
 ): Promise<string> => {
     
-    // Add validation for API key first
-    if (!apiKey || apiKey === "dummy-key") {
-        console.warn("No valid Gemini API key found, using simple fallback query");
-        // Return a simple query as fallback
-        return '[{"$limit": 10}]';
+    // If no frontend API key, let backend handle the translation
+    if (!apiKey || apiKey === "dummy-key" || !genAI) {
+        console.log("Delegating NL translation to backend");
+        // Return the original query - backend will handle translation
+        return naturalLanguageQuery;
     }
     
     const prompt = `
@@ -36,7 +37,7 @@ export const translateToMongoQuery = async (
     `;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text().trim();
@@ -45,6 +46,9 @@ export const translateToMongoQuery = async (
         let cleanedText = text;
         if (cleanedText.startsWith('```json')) {
             cleanedText = cleanedText.substring(7);
+        }
+        if (cleanedText.startsWith('```')) {
+            cleanedText = cleanedText.substring(3);
         }
         if (cleanedText.endsWith('```')) {
             cleanedText = cleanedText.substring(0, cleanedText.length - 3);
@@ -66,12 +70,12 @@ export const translateToMongoQuery = async (
 };
 
 export const testGeminiConnection = async (): Promise<boolean> => {
-    if (!apiKey || apiKey === "dummy-key") {
+    if (!apiKey || apiKey === "dummy-key" || !genAI) {
         return false;
     }
     
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         await model.generateContent("Hello");
         return true;
     } catch (error) {
