@@ -61,22 +61,42 @@ const App: React.FC = () => {
 
         try {
             let executedQuery = query;
+            
+            // For Natural Language mode, let the backend handle the translation
+            // The frontend translateToMongoQuery is kept as a fallback but mainly
+            // the backend will do the heavy lifting with the Gemini API
             if (mode === QueryMode.NL) {
+                console.log("Processing Natural Language query:", query);
+                // Try frontend translation first (if API key is available)
                 try {
-                    executedQuery = await translateToMongoQuery(query, selectedDataset.schema);
+                    const frontendTranslated = await translateToMongoQuery(query, selectedDataset.schema);
+                    // If we got back the original query, it means frontend delegated to backend
+                    if (frontendTranslated !== query && frontendTranslated !== '[{"$limit": 10}]') {
+                        executedQuery = frontendTranslated;
+                        console.log("Using frontend-translated query:", executedQuery);
+                    } else {
+                        // Let backend handle the translation
+                        executedQuery = query;
+                        console.log("Delegating translation to backend");
+                    }
                 } catch (err) {
-                    console.error("Natural language translation failed:", err);
-                    setError(`Natural language translation failed: ${err.message}. Try using SQL mode instead.`);
-                    setIsLoading(false);
-                    return;
+                    console.log("Frontend translation failed, using backend:", err);
+                    // Keep original query for backend to translate
+                    executedQuery = query;
                 }
             }
             
             const result = await runQuery(selectedDataset.id, executedQuery, mode);
             setQueryResult(result);
-        } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+            
+            // Show success message for NL queries
+            if (mode === QueryMode.NL && result.rows && result.rows.length > 0) {
+                console.log("Natural language query executed successfully");
+            }
+            
+        } catch (err: any) {
+            console.error('Query execution error:', err);
+            setError(err.message || 'Query execution failed. Please check your query and try again.');
         } finally {
             setIsLoading(false);
         }

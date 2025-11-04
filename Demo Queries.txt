@@ -1,5 +1,9 @@
 Demo Queries
 
+SELECT * FROM 
+WHERE Household_Size > 10
+LIMIT 100;
+
 [
   {
     "$match": {
