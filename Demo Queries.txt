@@ -1,3 +1,5 @@
+start backend python env: .\venv\Scripts\activate 
+
 Demo Queries
 
 SELECT * FROM 

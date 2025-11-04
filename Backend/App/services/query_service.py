@@ -55,6 +55,21 @@ class QueryService:
             # Parse and execute MongoDB aggregation pipeline
             pipeline = json.loads(query) if isinstance(query, str) else query
 
+            # Add default sort by _id to maintain original data order if no sort stage exists
+            has_sort = any('$sort' in stage for stage in pipeline)
+            if not has_sort:
+                # Insert sort stage before any limit stage if it exists
+                limit_index = None
+                for i, stage in enumerate(pipeline):
+                    if '$limit' in stage:
+                        limit_index = i
+                        break
+                
+                if limit_index is not None:
+                    pipeline.insert(limit_index, {"$sort": {"_id": 1}})
+                else:
+                    pipeline.append({"$sort": {"_id": 1}})
+
             if isinstance(self.db, dict):
                 # Handle fallback dictionary case - mock results
                 mock_result = {
@@ -226,6 +241,8 @@ Rules:
 4. For filtering, use $match stage
 5. For calculations, use $group with aggregation operators like $avg, $sum, $count, $min, $max
 6. Always include a reasonable $limit (like 100) unless specifically asked for all data
+7. IMPORTANT: Unless explicitly asked to sort by a specific field, do NOT include $sort stage - the system will maintain original data order automatically
+8. Only add $sort stage when the user explicitly asks for ordering (ascending, descending, sorted by, etc.)
 
 Example format:
 [{{"$match": {{"field_name": "value"}}}}, {{"$group": {{"_id": "$category", "average": {{"$avg": "$numeric_field"}}}}}}, {{"$limit": 100}}]
@@ -300,9 +317,9 @@ Example format:
                 print(f"Cleaned text: {cleaned_text}")
                 # If the generated text is not valid JSON, create a simple fallback query
                 if "limit" in query.lower() and any(word in query.lower() for word in ["all", "everything", "show", "display"]):
-                    mongo_query = [{"$limit": 1000}]
+                    mongo_query = [{"$sort": {"_id": 1}}, {"$limit": 1000}]
                 else:
-                    mongo_query = [{"$limit": 100}]
+                    mongo_query = [{"$sort": {"_id": 1}}, {"$limit": 100}]
 
             print(f"Final MongoDB query: {mongo_query}")
 

@@ -102,13 +102,19 @@ class SQLToMongoConverter:
             sort_stage = self._parse_order_by(parsed['order_by'])
             if sort_stage:
                 pipeline.append({"$sort": sort_stage})
+        else:
+            # Add default sort by _id to maintain original data order
+            # Only add this if there are other stages (match, project, etc.)
+            if pipeline:
+                pipeline.append({"$sort": {"_id": 1}})
         
         # 5. Handle LIMIT clause
         if parsed['limit']:
             pipeline.append({"$limit": parsed['limit']})
         
-        # If no pipeline stages, return a simple find all with limit
+        # If no pipeline stages, return a simple find all with default sort and limit
         if not pipeline:
+            pipeline.append({"$sort": {"_id": 1}})  # Maintain original order
             pipeline.append({"$limit": 100})  # Default limit
         
         return pipeline
