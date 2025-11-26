@@ -2,6 +2,7 @@ from flask import current_app
 import json
 import pandas as pd
 import math
+import time
 import requests
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
@@ -14,6 +15,8 @@ class QueryService:
         self.sql_converter = SQLToMongoConverter()
 
     def execute_query(self, dataset_id, query, mode):
+        start_time = time.time()
+        
         try:
             # Get dataset metadata
             dataset = None
@@ -34,14 +37,20 @@ class QueryService:
 
             # Handle different query modes
             if mode == 'SQL':
-                return self._execute_sql_query(collection_name, query)
+                result = self._execute_sql_query(collection_name, query)
             elif mode == 'Natural Language':
-                return self._execute_nl_query(dataset_id, query)
+                result = self._execute_nl_query(dataset_id, query)
             elif mode == 'MongoDB':
-                return self._execute_aggregation_query(collection_name, query)
+                result = self._execute_aggregation_query(collection_name, query)
             else:
                 # Fallback to aggregation for other modes
-                return self._execute_aggregation_query(collection_name, query)
+                result = self._execute_aggregation_query(collection_name, query)
+            
+            # Calculate execution time
+            execution_time = round((time.time() - start_time) * 1000, 2)  # Convert to milliseconds
+            result['execution_time_ms'] = execution_time
+            
+            return result
 
         except json.JSONDecodeError:
             raise ValueError('Invalid query format. JSON expected.')

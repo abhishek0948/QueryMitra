@@ -2,14 +2,23 @@ start backend python env: .\venv\Scripts\activate
 
 Demo Queries
 
+Show me the maximum entry from Usual_Expenditure this column along with entire row
+
+SELECT * FROM
+WHERE Annual_Clothing_Expenditure > 10000 
+AND Annual_Clothing_Expenditure < 60000
+LIMIT 100
+
+
 SELECT * FROM 
-WHERE Household_Size > 10
+WHERE Household_Size > 10 AND Household_Size < 30
 LIMIT 100;
 
 [
   {
     "$match": {
-      "Household_Size": { "$gt": 5 }
+      "Household_Size": { "$gt": 5 },
+      "Usual_Expenditure": { "$gt": 2000 }
     }
   },
   {
@@ -21,8 +30,7 @@ LIMIT 100;
 [
   {
     "$match": {
-      "Household_Size": { "$gt": 5 },
-      "Usual_Expenditure": { "$gt": 2000 }
+      "Household_Size": { "$gt": 5 }
     }
   },
   {

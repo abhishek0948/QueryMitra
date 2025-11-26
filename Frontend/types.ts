@@ -9,6 +9,7 @@ export type QueryResult = {
   columns: string[];
   rows: Record<string, string | number>[];
   query: string;
+  execution_time_ms?: number;
 };
 
 export enum QueryMode {

@@ -102,7 +102,20 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, isLoadin
     return (
         <div className="flex-1 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md flex flex-col min-h-0">
              <div className="flex items-center justify-between mb-4 border-b border-gray-200 dark:border-gray-700 pb-2 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Results</h2>
+                <div className="flex items-center gap-4">
+                    <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Results</h2>
+                    {result && !error && result.execution_time_ms !== undefined && (
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-500 dark:text-gray-400">Execution time:</span>
+                            <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">
+                                {result.execution_time_ms < 1000 
+                                    ? `${result.execution_time_ms} ms`
+                                    : `${(result.execution_time_ms / 1000).toFixed(2)} s`
+                                }
+                            </span>
+                        </div>
+                    )}
+                </div>
                 {result && !error && (
                     <div className="flex items-center space-x-2">
                         <button onClick={() => setView(ViewMode.Table)} className={`p-2 rounded-md ${view === ViewMode.Table ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`} title="Table View"><IconTable className="h-5 w-5 text-blue-500" /></button>
