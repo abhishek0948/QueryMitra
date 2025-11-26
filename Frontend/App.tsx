@@ -4,13 +4,36 @@ import { Sidebar } from './components/Sidebar';
 import { QueryInput } from './components/QueryInput';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { DataIngestionModal } from './components/DataIngestionModal';
-import { WelcomeScreen } from './components/WelcomeScreen';  // Ensure this import is present
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { Login } from './components/Login';
+import { Signup } from './components/Signup';
+import { OTPVerification } from './components/OTPVerification';
 import { translateToMongoQuery } from './services/geminiService';
-import { getDatasets, runQuery, uploadDataset as apiUploadDataset } from './services/apiService';
+import { 
+    getDatasets, 
+    runQuery, 
+    uploadDataset as apiUploadDataset,
+    login as apiLogin,
+    signup as apiSignup,
+    verifyOTP as apiVerifyOTP,
+    resendOTP as apiResendOTP,
+    logout as apiLogout,
+    getAuthToken,
+    getUserData,
+    verifyToken
+} from './services/apiService';
 import type { DataSet, QueryResult, ChartData } from './types';
 import { QueryMode } from './types';
 
 const App: React.FC = () => {
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [authView, setAuthView] = useState<'login' | 'signup' | 'otp'>('login');
+    const [pendingEmail, setPendingEmail] = useState<string>('');
+    const [authLoading, setAuthLoading] = useState<boolean>(false);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
+
     const [datasets, setDatasets] = useState<DataSet[]>([]);
     const [selectedDataset, setSelectedDataset] = useState<DataSet | null>(null);
     const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
@@ -20,21 +43,52 @@ const App: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [chartData, setChartData] = useState<ChartData[]>([]);
 
+    // Check authentication on mount
     useEffect(() => {
-        const fetchInitialData = async () => {
-            try {
-                setIsLoading(true);
-                const initialDatasets = await getDatasets();
-                setDatasets(initialDatasets);
-            } catch (err) {
-                setError('Failed to load initial datasets.');
-                console.error('Error loading datasets:', err);
-            } finally {
-                setIsLoading(false);
+        const checkAuth = async () => {
+            const token = getAuthToken();
+            const user = getUserData();
+            
+            if (token && user) {
+                const isValid = await verifyToken();
+                if (isValid) {
+                    setIsAuthenticated(true);
+                    setCurrentUser(user);
+                } else {
+                    apiLogout();
+                    setIsAuthenticated(false);
+                    setCurrentUser(null);
+                }
             }
+            setIsCheckingAuth(false);
         };
-        fetchInitialData();
+        
+        checkAuth();
     }, []);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            const fetchInitialData = async () => {
+                try {
+                    setIsLoading(true);
+                    const initialDatasets = await getDatasets();
+                    setDatasets(initialDatasets);
+                } catch (err: any) {
+                    if (err.message.includes('Session expired')) {
+                        setIsAuthenticated(false);
+                        setCurrentUser(null);
+                        setError('Your session has expired. Please login again.');
+                    } else {
+                        setError('Failed to load initial datasets.');
+                    }
+                    console.error('Error loading datasets:', err);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchInitialData();
+        }
+    }, [isAuthenticated]);
 
     useEffect(() => {
         if (queryResult && queryResult.rows.length > 0) {
@@ -62,26 +116,19 @@ const App: React.FC = () => {
         try {
             let executedQuery = query;
             
-            // For Natural Language mode, let the backend handle the translation
-            // The frontend translateToMongoQuery is kept as a fallback but mainly
-            // the backend will do the heavy lifting with the Gemini API
             if (mode === QueryMode.NL) {
                 console.log("Processing Natural Language query:", query);
-                // Try frontend translation first (if API key is available)
                 try {
                     const frontendTranslated = await translateToMongoQuery(query, selectedDataset.schema);
-                    // If we got back the original query, it means frontend delegated to backend
                     if (frontendTranslated !== query && frontendTranslated !== '[{"$limit": 10}]') {
                         executedQuery = frontendTranslated;
                         console.log("Using frontend-translated query:", executedQuery);
                     } else {
-                        // Let backend handle the translation
                         executedQuery = query;
                         console.log("Delegating translation to backend");
                     }
                 } catch (err) {
                     console.log("Frontend translation failed, using backend:", err);
-                    // Keep original query for backend to translate
                     executedQuery = query;
                 }
             }
@@ -89,13 +136,16 @@ const App: React.FC = () => {
             const result = await runQuery(selectedDataset.id, executedQuery, mode);
             setQueryResult(result);
             
-            // Show success message for NL queries
             if (mode === QueryMode.NL && result.rows && result.rows.length > 0) {
                 console.log("Natural language query executed successfully");
             }
             
         } catch (err: any) {
             console.error('Query execution error:', err);
+            if (err.message.includes('Session expired')) {
+                setIsAuthenticated(false);
+                setCurrentUser(null);
+            }
             setError(err.message || 'Query execution failed. Please check your query and try again.');
         } finally {
             setIsLoading(false);
@@ -110,16 +160,130 @@ const App: React.FC = () => {
             setDatasets(prev => [...prev, newDataset]);
             setSelectedDataset(newDataset);
             setIsModalOpen(false);
-        } catch (err) {
+        } catch (err: any) {
+            if (err.message.includes('Session expired')) {
+                setIsAuthenticated(false);
+                setCurrentUser(null);
+            }
             setError(err instanceof Error ? err.message : 'Failed to upload dataset.');
         } finally {
             setIsUploading(false);
         }
     };
 
+    const handleLogin = async (email: string, password: string) => {
+        setAuthLoading(true);
+        setAuthError(null);
+        try {
+            const { user } = await apiLogin(email, password);
+            setIsAuthenticated(true);
+            setCurrentUser(user);
+        } catch (err: any) {
+            setAuthError(err.message || 'Login failed. Please try again.');
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleSignup = async (name: string, email: string, password: string) => {
+        setAuthLoading(true);
+        setAuthError(null);
+        try {
+            await apiSignup(name, email, password);
+            setPendingEmail(email);
+            setAuthView('otp');
+        } catch (err: any) {
+            setAuthError(err.message || 'Signup failed. Please try again.');
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleVerifyOTP = async (email: string, otp: string) => {
+        setAuthLoading(true);
+        setAuthError(null);
+        try {
+            const { user } = await apiVerifyOTP(email, otp);
+            setIsAuthenticated(true);
+            setCurrentUser(user);
+            setPendingEmail('');
+        } catch (err: any) {
+            setAuthError(err.message || 'OTP verification failed. Please try again.');
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleResendOTP = async (email: string) => {
+        await apiResendOTP(email);
+    };
+
+    const handleLogout = () => {
+        apiLogout();
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        setDatasets([]);
+        setSelectedDataset(null);
+        setQueryResult(null);
+    };
+
+    if (isCheckingAuth) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAuthenticated) {
+        if (authView === 'login') {
+            return (
+                <Login
+                    onLogin={handleLogin}
+                    onSwitchToSignup={() => {
+                        setAuthView('signup');
+                        setAuthError(null);
+                    }}
+                    isLoading={authLoading}
+                    error={authError}
+                />
+            );
+        } else if (authView === 'signup') {
+            return (
+                <Signup
+                    onSignup={handleSignup}
+                    onSwitchToLogin={() => {
+                        setAuthView('login');
+                        setAuthError(null);
+                    }}
+                    isLoading={authLoading}
+                    error={authError}
+                />
+            );
+        } else {
+            return (
+                <OTPVerification
+                    email={pendingEmail}
+                    onVerify={handleVerifyOTP}
+                    onResendOTP={handleResendOTP}
+                    onBack={() => {
+                        setAuthView('signup');
+                        setAuthError(null);
+                        setPendingEmail('');
+                    }}
+                    isLoading={authLoading}
+                    error={authError}
+                />
+            );
+        }
+    }
+
     return (
         <div className="flex flex-col h-screen font-sans text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-900">
-            <Header />
+            <Header user={currentUser} onLogout={handleLogout} />
             <div className="flex flex-1 overflow-hidden">
                 <Sidebar
                     datasets={datasets}

@@ -14,7 +14,7 @@ class QueryService:
         self.db = current_app.db
         self.sql_converter = SQLToMongoConverter()
 
-    def execute_query(self, dataset_id, query, mode):
+    def execute_query(self, dataset_id, query, mode, user_id=None):
         start_time = time.time()
         
         try:
@@ -31,6 +31,10 @@ class QueryService:
 
             if not dataset:
                 raise ValueError('Dataset not found')
+            
+            # Verify dataset ownership if user_id is provided
+            if user_id and dataset.get('user_id') != user_id:
+                raise ValueError('Access denied: You do not have permission to query this dataset')
 
             # Execute query on dataset collection
             collection_name = f'data_{dataset_id}'

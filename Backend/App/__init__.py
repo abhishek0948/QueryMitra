@@ -1,5 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+from flask_mail import Mail
 from pymongo import MongoClient
 from config import Config
 import os
@@ -8,11 +10,25 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     
+    # Disable strict slashes to prevent redirects
+    app.url_map.strict_slashes = False
+    
     # Validate configuration
     Config.validate_config()
     
-    # Enable CORS
-    CORS(app)
+    # Enable CORS with proper configuration for JWT authentication
+    CORS(app, 
+         origins=["http://localhost:3000", "http://localhost:5173"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         allow_headers=["Content-Type", "Authorization"],
+         supports_credentials=True,
+         expose_headers=["Content-Type", "Authorization"])
+    
+    # Initialize JWT
+    jwt = JWTManager(app)
+    
+    # Initialize Flask-Mail
+    mail = Mail(app)
     
     # Initialize MongoDB connection with error handling
     try:
@@ -59,9 +75,10 @@ def create_app():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
     # Register blueprints - import here, not at the top
-    from App.routes import dataset_routes, query_routes
+    from App.routes import dataset_routes, query_routes, auth_routes
     app.register_blueprint(dataset_routes.bp)
     app.register_blueprint(query_routes.bp)
+    app.register_blueprint(auth_routes.bp)
     
     # Add health check route
     @app.route('/api/health')

@@ -8,20 +8,24 @@ class DatasetService:
     def __init__(self):
         self.db = current_app.db
         
-    def get_all_datasets(self):
+    def get_all_datasets(self, user_id=None):
         try:
             if isinstance(self.db, dict):
                 # Handle fallback dictionary case
-                return self.db.get("datasets", [])
+                all_datasets = self.db.get("datasets", [])
+                if user_id:
+                    return [d for d in all_datasets if d.get('user_id') == user_id]
+                return all_datasets
             else:
                 # Normal MongoDB case
-                datasets = list(self.db.datasets.find({}, {'_id': 0}))
+                query = {'user_id': user_id} if user_id else {}
+                datasets = list(self.db.datasets.find(query, {'_id': 0}))
                 return datasets
         except Exception as e:
             print(f"Error getting datasets: {str(e)}")
             return []
         
-    def create_dataset(self, file_path, name, description):
+    def create_dataset(self, file_path, name, description, user_id=None):
         try:
             # Check if file exists
             if not os.path.exists(file_path):
@@ -31,8 +35,8 @@ class DatasetService:
             df = pd.read_csv(file_path)
             schema = self._infer_schema(df)
             
-            # Create dataset metadata
-            dataset = Dataset(name, description, file_path, schema)
+            # Create dataset metadata with user_id
+            dataset = Dataset(name, description, file_path, schema, user_id)
             dataset_dict = dataset.to_dict()
             
             # Save dataset metadata
