@@ -101,6 +101,7 @@ def verify_otp():
             'name': user.name,
             'email': user.email,
             'password_hash': user.password_hash,
+            'role': user.role,
             'created_at': user.created_at
         }
         current_app.db['users'].insert_one(user_dict)
@@ -108,8 +109,11 @@ def verify_otp():
         # Delete pending user
         current_app.db['pending_users'].delete_one({'email': email})
         
-        # Create access token
-        access_token = create_access_token(identity=user.id)
+        # Create access token with additional claims
+        access_token = create_access_token(
+            identity=user.id,
+            additional_claims={'role': user.role}
+        )
         
         return jsonify({
             'message': 'Email verified successfully',
@@ -168,8 +172,11 @@ def login():
         auth_service = AuthService()
         user = auth_service.authenticate_user(email, password)
         
-        # Create access token
-        access_token = create_access_token(identity=user.id)
+        # Create access token with additional claims
+        access_token = create_access_token(
+            identity=user.id,
+            additional_claims={'role': user.role}
+        )
         
         return jsonify({
             'message': 'Login successful',

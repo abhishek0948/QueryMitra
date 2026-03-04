@@ -7,7 +7,34 @@ class AuthService:
         self.db = current_app.db
         self.users_collection = self.db['users']
     
-    def register_user(self, name, email, password):
+    def initialize_admin(self):
+        """Initialize default admin user if not exists."""
+        # Delete old admin user with just 'admin' as email
+        self.users_collection.delete_one({'email': 'admin'})
+        
+        admin_email = 'admin@admin.com'
+        existing_admin = self.users_collection.find_one({'email': admin_email})
+        
+        if not existing_admin:
+            password_hash = User.hash_password('admin')
+            admin_user = User(
+                name='Admin',
+                email=admin_email,
+                password_hash=password_hash,
+                role='admin'
+            )
+            admin_dict = {
+                'id': admin_user.id,
+                'name': admin_user.name,
+                'email': admin_user.email,
+                'password_hash': admin_user.password_hash,
+                'role': admin_user.role,
+                'created_at': admin_user.created_at
+            }
+            self.users_collection.insert_one(admin_dict)
+            print("Admin user created successfully with email: admin@admin.com")
+    
+    def register_user(self, name, email, password, role='user'):
         """Register a new user."""
         # Check if user already exists
         existing_user = self.users_collection.find_one({'email': email})
@@ -16,7 +43,7 @@ class AuthService:
         
         # Create new user with hashed password
         password_hash = User.hash_password(password)
-        user = User(name=name, email=email, password_hash=password_hash)
+        user = User(name=name, email=email, password_hash=password_hash, role=role)
         
         # Save to database
         user_dict = {
@@ -24,6 +51,7 @@ class AuthService:
             'name': user.name,
             'email': user.email,
             'password_hash': user.password_hash,
+            'role': user.role,
             'created_at': user.created_at
         }
         self.users_collection.insert_one(user_dict)
@@ -56,3 +84,8 @@ class AuthService:
         if not user_data:
             return None
         return User.from_dict(user_data)
+    
+    def get_all_users(self):
+        """Get all users (admin only)."""
+        users_data = self.users_collection.find()
+        return [User.from_dict(user_data).to_dict() for user_data in users_data]

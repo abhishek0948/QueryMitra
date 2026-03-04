@@ -338,3 +338,155 @@ export const deleteDataset = async (datasetId: string): Promise<void> => {
         throw error;
     }
 };
+
+export const downloadDatasetAdmin = async (datasetId: string, filename: string): Promise<void> => {
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/admin/datasets/${datasetId}/download`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                removeAuthToken();
+                throw new Error('Session expired. Please login again.');
+            }
+            // Read actual error message from backend
+            try {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Failed to download (${response.status})`);
+            } catch {
+                throw new Error(`Failed to download dataset (HTTP ${response.status})`);
+            }
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (error) {
+        console.error('Error downloading dataset:', error);
+        throw error;
+    }
+};
+
+export const previewDatasetAdmin = async (datasetId: string): Promise<any> => {
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/admin/datasets/${datasetId}/preview`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                removeAuthToken();
+                throw new Error('Session expired. Please login again.');
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to preview dataset');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error previewing dataset:', error);
+        throw error;
+    }
+};
+// Admin API functions
+export const getAllUsers = async (): Promise<any> => {
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/admin/users`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                removeAuthToken();
+                throw new Error('Session expired. Please login again.');
+            }
+            if (response.status === 403) {
+                throw new Error('Admin access required');
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch users');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        throw error;
+    }
+};
+
+export const getAllDatasetsAdmin = async (): Promise<any> => {
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/admin/datasets`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                removeAuthToken();
+                throw new Error('Session expired. Please login again.');
+            }
+            if (response.status === 403) {
+                throw new Error('Admin access required');
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch datasets');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching datasets:', error);
+        throw error;
+    }
+};
+
+export const getAdminStats = async (): Promise<any> => {
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                removeAuthToken();
+                throw new Error('Session expired. Please login again.');
+            }
+            if (response.status === 403) {
+                throw new Error('Admin access required');
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to fetch stats');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        throw error;
+    }
+};

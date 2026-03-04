@@ -35,8 +35,11 @@ class DatasetService:
             df = pd.read_csv(file_path)
             schema = self._infer_schema(df)
             
+            # Extract just the base filename (not full path)
+            base_filename = os.path.basename(file_path)
+            
             # Create dataset metadata with user_id
-            dataset = Dataset(name, description, file_path, schema, user_id)
+            dataset = Dataset(name, description, base_filename, schema, user_id)
             dataset_dict = dataset.to_dict()
             
             # Save dataset metadata

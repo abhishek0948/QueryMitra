@@ -75,10 +75,17 @@ def create_app():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     
     # Register blueprints - import here, not at the top
-    from App.routes import dataset_routes, query_routes, auth_routes
+    from App.routes import dataset_routes, query_routes, auth_routes, admin_routes
     app.register_blueprint(dataset_routes.bp)
     app.register_blueprint(query_routes.bp)
     app.register_blueprint(auth_routes.bp)
+    app.register_blueprint(admin_routes.bp)
+    
+    # Initialize admin user after blueprints are registered
+    with app.app_context():
+        from App.services.auth_service import AuthService
+        auth_service = AuthService()
+        auth_service.initialize_admin()
     
     # Add health check route
     @app.route('/api/health')

@@ -16,6 +16,7 @@ class Dataset:
             'id': self.id,
             'name': self.name,
             'description': self.description,
+            'filename': self.filename,
             'schema': self.schema,
             'user_id': self.user_id,
             'created_at': self.created_at.isoformat()

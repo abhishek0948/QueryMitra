@@ -8,6 +8,7 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { Login } from './components/Login';
 import { Signup } from './components/Signup';
 import { OTPVerification } from './components/OTPVerification';
+import { AdminDashboard } from './components/AdminDashboard';
 import { translateToMongoQuery } from './services/geminiService';
 import { 
     getDatasets, 
@@ -297,6 +298,11 @@ const App: React.FC = () => {
                 />
             );
         }
+    }
+
+    // Show admin dashboard if user is admin
+    if (currentUser && currentUser.role === 'admin') {
+        return <AdminDashboard onLogout={handleLogout} />;
     }
 
     return (
