@@ -9,6 +9,7 @@ import { Login } from './components/Login';
 import { Signup } from './components/Signup';
 import { OTPVerification } from './components/OTPVerification';
 import { AdminDashboard } from './components/AdminDashboard';
+import { LibrarySection } from './components/LibrarySection';
 import { translateToMongoQuery } from './services/geminiService';
 import { 
     getDatasets, 
@@ -44,6 +45,7 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const [chartData, setChartData] = useState<ChartData[]>([]);
+    const [activeView, setActiveView] = useState<'query' | 'library'>('query');
 
     // Check authentication on mount
     useEffect(() => {
@@ -307,29 +309,43 @@ const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen font-sans text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-900">
-            <Header user={currentUser} onLogout={handleLogout} />
+            <Header user={currentUser} onLogout={handleLogout} activeView={activeView} onViewChange={setActiveView} />
             <div className="flex flex-1 overflow-hidden">
-                <Sidebar
-                    datasets={datasets}
-                    selectedDatasetId={selectedDataset?.id}
-                    onSelectDataset={id => {
-                        setSelectedDataset(datasets.find(d => d.id === id) || null);
-                        setQueryResult(null);
-                        setError(null);
-                    }}
-                    onUploadClick={() => setIsModalOpen(true)}
-                    onDeleteDataset={handleDeleteDataset}
-                />
-                <main className="flex-1 flex flex-col p-6 overflow-auto">
-                    {selectedDataset ? (
-                      <>
-                        <QueryInput dataset={selectedDataset} onRunQuery={handleRunQuery} isLoading={isLoading} />
-                        <ResultsDisplay result={queryResult} isLoading={isLoading} error={error} chartData={chartData} />
-                      </>
-                    ) : (
-                      <WelcomeScreen onUploadClick={() => setIsModalOpen(true)} />
-                    )}
-                </main>
+                {activeView === 'library' ? (
+                    <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
+                        <LibrarySection
+                            isAdmin={false}
+                            onImportSuccess={(name) => {
+                                // Refresh datasets list so imported file appears in sidebar
+                                getDatasets().then(setDatasets).catch(() => {});
+                            }}
+                        />
+                    </main>
+                ) : (
+                    <>
+                        <Sidebar
+                            datasets={datasets}
+                            selectedDatasetId={selectedDataset?.id}
+                            onSelectDataset={id => {
+                                setSelectedDataset(datasets.find(d => d.id === id) || null);
+                                setQueryResult(null);
+                                setError(null);
+                            }}
+                            onUploadClick={() => setIsModalOpen(true)}
+                            onDeleteDataset={handleDeleteDataset}
+                        />
+                        <main className="flex-1 flex flex-col p-6 overflow-auto">
+                            {selectedDataset ? (
+                              <>
+                                <QueryInput dataset={selectedDataset} onRunQuery={handleRunQuery} isLoading={isLoading} />
+                                <ResultsDisplay result={queryResult} isLoading={isLoading} error={error} chartData={chartData} />
+                              </>
+                            ) : (
+                              <WelcomeScreen onUploadClick={() => setIsModalOpen(true)} />
+                            )}
+                        </main>
+                    </>
+                )}
             </div>
             {isModalOpen && (
                 <DataIngestionModal

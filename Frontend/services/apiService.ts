@@ -3,7 +3,7 @@ import type { DataSet, QueryResult, QueryMode } from '../types';
 import { MOCK_DATASETS, MOCK_QUERY_RESULT } from '../constants';
 
 // API base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5001/api';
 
 // Use mock data for development if API is unreachable
 let useMockData = false;
@@ -489,4 +489,51 @@ export const getAdminStats = async (): Promise<any> => {
         console.error('Error fetching stats:', error);
         throw error;
     }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CSV Library — talks directly to the external CSV Library app (port 5000)
+// ─────────────────────────────────────────────────────────────────────────────
+const LIBRARY_BASE_URL = 'http://localhost:5000/api';
+
+/** Get the list of all uploaded CSV files in the shared library. */
+export const getLibraryFiles = async (): Promise<any[]> => {
+    const response = await fetch(`${LIBRARY_BASE_URL}/files`);
+    if (!response.ok) {
+        throw new Error(`Library server error (${response.status}). Is the CSV Library running on port 5000?`);
+    }
+    const data = await response.json();
+    return data.files ?? [];
+};
+
+/** Get the first 20 rows of a library file for preview. */
+export const previewLibraryFile = async (fileName: string): Promise<{ columns: string[]; rows: any[] }> => {
+    const url = `${LIBRARY_BASE_URL}/data?fileName=${encodeURIComponent(fileName)}&limit=20&page=1`;
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to load preview (${response.status})`);
+    }
+    const data = await response.json();
+    const rows: any[] = (data.data ?? []).map((rec: any) => rec.data ?? rec);
+    const columns: string[] = rows.length > 0 ? Object.keys(rows[0]) : [];
+    return { columns, rows };
+};
+
+/**
+ * Download a file from the library and re-upload it into Query Mitra as a
+ * personal dataset for the currently logged-in user.
+ */
+export const importLibraryFile = async (fileName: string): Promise<DataSet> => {
+    // 1. Fetch the raw CSV from the external library
+    const downloadUrl = `${LIBRARY_BASE_URL}/download/${encodeURIComponent(fileName)}`;
+    const downloadResponse = await fetch(downloadUrl);
+    if (!downloadResponse.ok) {
+        throw new Error(`Failed to download library file (${downloadResponse.status})`);
+    }
+    const blob = await downloadResponse.blob();
+    const file = new File([blob], fileName, { type: 'text/csv' });
+
+    // 2. Upload it into this app's backend under the authenticated user
+    const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+    return uploadDataset(file, nameWithoutExt, `Imported from CSV Library: ${fileName}`);
 };

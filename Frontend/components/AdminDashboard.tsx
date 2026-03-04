@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllUsers, getAllDatasetsAdmin, getAdminStats, downloadDatasetAdmin, previewDatasetAdmin } from '../services/apiService';
+import { LibrarySection } from './LibrarySection';
 
 interface User {
     id: string;
@@ -38,7 +39,7 @@ interface PreviewData {
 }
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'datasets'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'datasets' | 'library'>('overview');
     const [users, setUsers] = useState<User[]>([]);
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);
@@ -53,6 +54,9 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
     }, [activeTab]);
 
     const loadData = async () => {
+        // LibrarySection manages its own data fetching
+        if (activeTab === 'library') return;
+
         setLoading(true);
         setError(null);
         try {
@@ -146,6 +150,16 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                             } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                         >
                             All Datasets
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('library')}
+                            className={`${
+                                activeTab === 'library'
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            CSV Library
                         </button>
                     </nav>
                 </div>
@@ -263,6 +277,12 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'library' && (
+                            <div className="bg-white rounded-lg shadow">
+                                <LibrarySection isAdmin />
                             </div>
                         )}
 
