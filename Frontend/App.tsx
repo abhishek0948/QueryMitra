@@ -13,6 +13,7 @@ import {
     getDatasets, 
     runQuery, 
     uploadDataset as apiUploadDataset,
+    deleteDataset as apiDeleteDataset,
     login as apiLogin,
     signup as apiSignup,
     verifyOTP as apiVerifyOTP,
@@ -171,6 +172,23 @@ const App: React.FC = () => {
         }
     };
 
+    const handleDeleteDataset = async (datasetId: string) => {
+        try {
+            await apiDeleteDataset(datasetId);
+            setDatasets(prev => prev.filter(d => d.id !== datasetId));
+            if (selectedDataset?.id === datasetId) {
+                setSelectedDataset(null);
+                setQueryResult(null);
+            }
+        } catch (err: any) {
+            if (err.message.includes('Session expired')) {
+                setIsAuthenticated(false);
+                setCurrentUser(null);
+            }
+            setError(err instanceof Error ? err.message : 'Failed to delete dataset.');
+        }
+    };
+
     const handleLogin = async (email: string, password: string) => {
         setAuthLoading(true);
         setAuthError(null);
@@ -294,6 +312,7 @@ const App: React.FC = () => {
                         setError(null);
                     }}
                     onUploadClick={() => setIsModalOpen(true)}
+                    onDeleteDataset={handleDeleteDataset}
                 />
                 <main className="flex-1 flex flex-col p-6 overflow-auto">
                     {selectedDataset ? (

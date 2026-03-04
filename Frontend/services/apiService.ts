@@ -308,3 +308,33 @@ export const uploadDataset = async (
         throw error;
     }
 };
+
+export const deleteDataset = async (datasetId: string): Promise<void> => {
+    if (useMockData) {
+        await delay(500);
+        console.log(`Deleting dataset: ${datasetId}`);
+        return;
+    }
+
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_BASE_URL}/datasets/${datasetId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                removeAuthToken();
+                throw new Error('Session expired. Please login again.');
+            }
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Delete failed: ${response.statusText}`);
+        }
+    } catch (error) {
+        console.error('Error deleting dataset:', error);
+        throw error;
+    }
+};

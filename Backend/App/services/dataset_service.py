@@ -71,6 +71,61 @@ class DatasetService:
         except Exception as e:
             raise Exception(f"Failed to create dataset: {str(e)}")
         
+    def delete_dataset(self, dataset_id, user_id):
+        try:
+            if isinstance(self.db, dict):
+                # Handle fallback dictionary case
+                datasets = self.db.get("datasets", [])
+                dataset = next((d for d in datasets if d.get('id') == dataset_id), None)
+                
+                if not dataset:
+                    return False
+                    
+                # Verify ownership
+                if dataset.get('user_id') != user_id:
+                    return False
+                    
+                # Remove from list
+                self.db["datasets"] = [d for d in datasets if d.get('id') != dataset_id]
+                
+                # Delete fallback data file
+                fallback_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'fallback_data')
+                data_file = os.path.join(fallback_dir, f'data_{dataset_id}.json')
+                if os.path.exists(data_file):
+                    os.remove(data_file)
+                    
+                # Delete uploaded file if it exists
+                if dataset.get('file_path') and os.path.exists(dataset['file_path']):
+                    os.remove(dataset['file_path'])
+                    
+                return True
+            else:
+                # Normal MongoDB case
+                dataset = self.db.datasets.find_one({'id': dataset_id})
+                
+                if not dataset:
+                    return False
+                    
+                # Verify ownership
+                if dataset.get('user_id') != user_id:
+                    return False
+                    
+                # Delete dataset metadata
+                self.db.datasets.delete_one({'id': dataset_id})
+                
+                # Delete dataset contents collection
+                collection_name = f'data_{dataset_id}'
+                self.db[collection_name].drop()
+                
+                # Delete uploaded file if it exists
+                if dataset.get('file_path') and os.path.exists(dataset['file_path']):
+                    os.remove(dataset['file_path'])
+                    
+                return True
+        except Exception as e:
+            print(f"Error deleting dataset: {str(e)}")
+            return False
+    
     def _infer_schema(self, df):
         schema = {}
         for column in df.columns:

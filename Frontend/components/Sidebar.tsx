@@ -9,14 +9,28 @@ interface SidebarProps {
     selectedDatasetId: string | null | undefined;
     onSelectDataset: (id: string) => void;
     onUploadClick: () => void;
+    onDeleteDataset: (id: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ datasets, selectedDatasetId, onSelectDataset, onUploadClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ datasets, selectedDatasetId, onSelectDataset, onUploadClick, onDeleteDataset }) => {
     const [expandedDatasetId, setExpandedDatasetId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const toggleExpand = (datasetId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         setExpandedDatasetId(expandedDatasetId === datasetId ? null : datasetId);
+    };
+
+    const handleDelete = async (datasetId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (window.confirm('Are you sure you want to delete this dataset? This action cannot be undone.')) {
+            setDeletingId(datasetId);
+            try {
+                await onDeleteDataset(datasetId);
+            } finally {
+                setDeletingId(null);
+            }
+        }
     };
 
     return (
@@ -58,20 +72,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ datasets, selectedDatasetId, o
                                                 </p>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={(e) => toggleExpand(dataset.id, e)}
-                                            className="ml-2 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                                            title={isExpanded ? "Hide columns" : "Show columns"}
-                                        >
-                                            <svg
-                                                className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
+                                        <div className="flex items-center space-x-1 ml-2">
+                                            <button
+                                                onClick={(e) => handleDelete(dataset.id, e)}
+                                                disabled={deletingId === dataset.id}
+                                                className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors group"
+                                                title="Delete dataset"
                                             >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </button>
+                                                {deletingId === dataset.id ? (
+                                                    <svg className="w-4 h-4 animate-spin text-red-500" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-4 h-4 text-gray-400 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={(e) => toggleExpand(dataset.id, e)}
+                                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                                title={isExpanded ? "Hide columns" : "Show columns"}
+                                            >
+                                                <svg
+                                                    className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                        </div>
                                     </div>
                                 </button>
                                 

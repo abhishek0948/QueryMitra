@@ -42,9 +42,9 @@ const TableView: React.FC<{ result: QueryResult }> = ({ result }) => {
     }
 
     return (
-        <div className="w-full overflow-x-auto">
+        <div className="w-full h-full overflow-auto">
             <table className="min-w-max border-collapse divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                     <tr>
                         {result.columns.map(col => (
                             <th

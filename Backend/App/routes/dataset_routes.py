@@ -54,3 +54,25 @@ def upload_dataset():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@bp.route('/<dataset_id>', methods=['DELETE'])
+@jwt_required()
+def delete_dataset(dataset_id):
+    try:
+        # Import and initialize the service inside the route function
+        from App.services.dataset_service import DatasetService
+        dataset_service = DatasetService()
+        
+        # Get current user ID from JWT token
+        user_id = get_jwt_identity()
+        
+        # Delete the dataset (will verify ownership inside service)
+        result = dataset_service.delete_dataset(dataset_id, user_id)
+        
+        if result:
+            return jsonify({'message': 'Dataset deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Dataset not found or unauthorized'}), 404
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
