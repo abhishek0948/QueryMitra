@@ -16,13 +16,25 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({ onClose,
     const [description, setDescription] = useState('');
     const [error, setError] = useState<string | null>(null);
 
+    const ALLOWED_EXTS = ['.csv', '.pdf'];
+
+    const validateAndSetFile = (f: File) => {
+        const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+        if (!ALLOWED_EXTS.includes(ext)) {
+            setError(`Unsupported file type "${ext}". Please upload a CSV or PDF file.`);
+            setFile(null);
+            return;
+        }
+        setError(null);
+        setFile(f);
+        if (!name) {
+            setName(f.name.replace(/\.[^/.]+$/, ''));
+        }
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0]);
-            if (!name) {
-                // Pre-fill name from filename without extension
-                setName(e.target.files[0].name.replace(/\.[^/.]+$/, ""));
-            }
+            validateAndSetFile(e.target.files[0]);
         }
     };
 
@@ -40,10 +52,7 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({ onClose,
         event.preventDefault();
         event.stopPropagation();
         if (event.dataTransfer.files && event.dataTransfer.files[0]) {
-            setFile(event.dataTransfer.files[0]);
-             if (!name) {
-                setName(event.dataTransfer.files[0].name.replace(/\.[^/.]+$/, ""));
-            }
+            validateAndSetFile(event.dataTransfer.files[0]);
         }
     }, [name]);
     
@@ -93,18 +102,34 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({ onClose,
                            className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50 dark:bg-gray-700/50"
                         >
                             <div className="space-y-1 text-center">
-                                <IconUpload className="mx-auto h-12 w-12 text-gray-400" />
-                                <div className="flex text-sm text-gray-600 dark:text-gray-400">
-                                    <span className="relative rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500">
-                                        <span>Upload a file</span>
-                                    </span>
-                                    <p className="pl-1">or drag and drop</p>
-                                </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-500">CSV, JSON, etc. up to 10MB</p>
-                            </div>
+                                 <IconUpload className="mx-auto h-12 w-12 text-gray-400" />
+                                 <div className="flex text-sm text-gray-600 dark:text-gray-400">
+                                     <span className="relative rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500">
+                                         <span>Upload a file</span>
+                                     </span>
+                                     <p className="pl-1">or drag and drop</p>
+                                 </div>
+                                 <p className="text-xs text-gray-500 dark:text-gray-500">CSV or PDF (with tables) up to 16MB</p>
+                             </div>
                         </label>
-                         <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
-                         {file && <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Selected file: {file.name}</p>}
+                         <input id="file-upload" name="file-upload" type="file" accept=".csv,.pdf" className="sr-only" onChange={handleFileChange} />
+                         {file && (
+                              <div className="mt-2 flex items-center gap-2">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase ${
+                                      file.name.toLowerCase().endsWith('.pdf')
+                                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                          : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                  }`}>
+                                      {file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'CSV'}
+                                  </span>
+                                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{file.name}</p>
+                              </div>
+                          )}
+                          {file?.name.toLowerCase().endsWith('.pdf') && (
+                              <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                                  📊 Tables will be automatically extracted from all pages of the PDF.
+                              </p>
+                          )}
                     </div>
 
                     {error && <p className="text-red-500 text-sm">{error}</p>}

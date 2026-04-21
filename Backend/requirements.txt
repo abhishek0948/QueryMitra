@@ -12,3 +12,4 @@ requests>=2.25.1
 python-dateutil>=2.8.2  # For date/time handling in SQL converter
 regex>=2021.4.4  # For more advanced regex operations in SQL parsing
 bcrypt==4.0.1
+pdfplumber>=0.10.0  # For extracting tables from PDF files

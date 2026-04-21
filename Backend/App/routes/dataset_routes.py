@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 import os
 
+ALLOWED_EXTENSIONS = {'.csv', '.pdf'}
+
 bp = Blueprint('datasets', __name__, url_prefix='/api/datasets')
 
 @bp.route('/', methods=['GET'])
@@ -46,6 +48,10 @@ def upload_dataset():
             return jsonify({'error': 'Name and description are required'}), 400
             
         filename = secure_filename(file.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            return jsonify({'error': f'File type "{ext}" not supported. Please upload a CSV or PDF file.'}), 400
+
         file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         
@@ -53,6 +59,7 @@ def upload_dataset():
         return jsonify(dataset.to_dict()), 201
         
     except Exception as e:
+        print("Error is ->",str(e))
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/<dataset_id>', methods=['DELETE'])
