@@ -3,6 +3,16 @@ import os
 import json
 import pdfplumber
 from flask import current_app
+
+# OCR dependencies (Strategy 4 — scanned PDFs)
+# These are imported lazily inside the methods so the rest of the app
+# continues to work even if the system packages are not yet installed.
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    _OCR_AVAILABLE = True
+except ImportError:
+    _OCR_AVAILABLE = False
 from App.models.dataset import Dataset
 
 class DatasetService:
@@ -68,6 +78,20 @@ class DatasetService:
         all_frames = self._try_word_position_extraction(file_path)
         if all_frames:
             return self._finalize(all_frames)
+
+        # ── Strategy 4: OCR (scanned / image-only PDFs) ───────────────────────
+        # Only attempted when no text layer was found by strategies 1-3 AND
+        # the OCR libraries are available on the system.
+        if self._is_scanned_pdf(file_path):
+            if not _OCR_AVAILABLE:
+                raise ValueError(
+                    "This appears to be a scanned PDF (no embedded text found). "
+                    "OCR support requires the 'pdf2image' and 'pytesseract' packages "
+                    "and the Tesseract binary. Please install them and retry."
+                )
+            all_frames = self._try_ocr_extraction(file_path)
+            if all_frames:
+                return self._finalize(all_frames)
 
         raise ValueError(
             "No tables were found in the PDF. "
@@ -183,6 +207,97 @@ class DatasetService:
             return False
 
         return True
+
+    # ── Strategy 4 helpers ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_scanned_pdf(file_path):
+        """
+        Return True when the PDF has no usable embedded text on ANY page,
+        which is the hallmark of a scanned / image-only PDF.
+
+        We use pdfplumber's extract_words() as the cheapest probe: if the
+        total word count across all pages is zero (or negligibly small),
+        we conclude the document is image-only and needs OCR.
+        """
+        total_words = 0
+        try:
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    words = page.extract_words() or []
+                    total_words += len(words)
+                    if total_words > 5:   # short-circuit: definitely has text
+                        return False
+        except Exception:
+            pass
+        return total_words <= 5
+
+    def _try_ocr_extraction(self, file_path):
+        """
+        Strategy 4: OCR-based extraction for scanned / image-only PDFs.
+
+        Pipeline per page:
+          1. pdf2image converts the page to a high-resolution PIL image.
+          2. pytesseract runs Tesseract in hOCR mode to get each word's
+             bounding box (x0, top, x1, bottom, text).
+          3. The word list is fed directly into _words_to_dataframe(),
+             which already handles column clustering and header detection.
+
+        This reuses all the existing column-alignment and header-detection
+        logic — no duplication needed.
+        """
+        frames = []
+        last_headers = None
+
+        try:
+            # 300 DPI gives Tesseract enough resolution to read small fonts
+            images = convert_from_path(file_path, dpi=300)
+        except Exception as e:
+            raise ValueError(f"Failed to render PDF pages for OCR: {e}")
+
+        for img in images:
+            # Run Tesseract; get detailed per-word bounding boxes
+            try:
+                ocr_data = pytesseract.image_to_data(
+                    img,
+                    output_type=pytesseract.Output.DICT,
+                    config='--psm 6'   # Assume a single block of text (table)
+                )
+            except Exception as e:
+                # Non-fatal: skip pages Tesseract cannot process
+                print(f"[OCR] Warning: Tesseract failed on a page — {e}")
+                continue
+
+            # Build a word list compatible with pdfplumber's extract_words format
+            words = []
+            n_boxes = len(ocr_data['text'])
+            for i in range(n_boxes):
+                text = ocr_data['text'][i].strip()
+                conf = int(ocr_data['conf'][i])
+                # Skip low-confidence or empty detections
+                if not text or conf < 30:
+                    continue
+                x0   = float(ocr_data['left'][i])
+                top  = float(ocr_data['top'][i])
+                w    = float(ocr_data['width'][i])
+                h    = float(ocr_data['height'][i])
+                words.append({
+                    'text':   text,
+                    'x0':     x0,
+                    'top':    top,
+                    'x1':     x0 + w,
+                    'bottom': top + h,
+                })
+
+            if not words:
+                continue
+
+            df = self._words_to_dataframe(words, fallback_headers=last_headers)
+            if df is not None:
+                frames.append(df)
+                last_headers = list(df.columns)
+
+        return frames
 
     def _try_word_position_extraction(self, file_path):
         """
