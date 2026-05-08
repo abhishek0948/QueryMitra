@@ -14,10 +14,38 @@ try:
 except ImportError:
     _OCR_AVAILABLE = False
 from App.models.dataset import Dataset
+from App.services.encryption_util import SimpleEncryptor
 
 class DatasetService:
     def __init__(self):
         self.db = current_app.db
+        self.encryptor = SimpleEncryptor()
+
+    def load_dataset_records(self, dataset_id):
+        """
+        Load and decrypt dataset records for a given dataset_id.
+        Returns a list of records (dicts).
+        """
+        # Fallback (file-based) mode
+        if isinstance(self.db, dict):
+            fallback_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'fallback_data')
+            data_file = os.path.join(fallback_dir, f'data_{dataset_id}.bin')
+            if not os.path.exists(data_file):
+                return []
+            with open(data_file, 'rb') as f:
+                encrypted_data = f.read()
+            decrypted = self.encryptor.decrypt(encrypted_data)
+            return json.loads(decrypted.decode('utf-8'))
+        else:
+            # MongoDB mode
+            collection_name = f'data_{dataset_id}'
+            encrypted_records = list(self.db[collection_name].find({}, {'_id': 0}))
+            records = []
+            for enc in encrypted_records:
+                if 'data' in enc:
+                    decrypted = self.encryptor.decrypt(enc['data'])
+                    records.append(json.loads(decrypted.decode('utf-8')))
+            return records
         
     def get_all_datasets(self, user_id=None):
         try:
@@ -667,22 +695,27 @@ class DatasetService:
                     self.db["datasets"] = []
                 self.db["datasets"].append(dataset_dict)
 
-                # Save data to a JSON file as fallback
+                # Save data to a binary file as fallback (encrypted)
                 fallback_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'fallback_data')
                 os.makedirs(fallback_dir, exist_ok=True)
 
                 records = df.to_dict('records')
-                with open(os.path.join(fallback_dir, f'data_{dataset.id}.json'), 'w') as f:
-                    json.dump(records, f)
+                encrypted_data = self.encryptor.encrypt(json.dumps(records).encode('utf-8'))
+                with open(os.path.join(fallback_dir, f'data_{dataset.id}.bin'), 'wb') as f:
+                    f.write(encrypted_data)
             else:
                 # Normal MongoDB case
                 self.db.datasets.insert_one(dataset_dict)
 
-                # Save dataset contents
+                # Save dataset contents (encrypted)
                 collection_name = f'data_{dataset.id}'
                 records = df.to_dict('records')
-                if records:
-                    self.db[collection_name].insert_many(records)
+                encrypted_records = [
+                    {"data": self.encryptor.encrypt(json.dumps(record).encode('utf-8'))}
+                    for record in records
+                ]
+                if encrypted_records:
+                    self.db[collection_name].insert_many(encrypted_records)
 
             return dataset
         except pd.errors.EmptyDataError:
@@ -711,14 +744,14 @@ class DatasetService:
                 
                 # Delete fallback data file
                 fallback_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'fallback_data')
-                data_file = os.path.join(fallback_dir, f'data_{dataset_id}.json')
+                data_file = os.path.join(fallback_dir, f'data_{dataset_id}.bin')
                 if os.path.exists(data_file):
                     os.remove(data_file)
-                    
+                
                 # Delete uploaded file if it exists
                 if dataset.get('file_path') and os.path.exists(dataset['file_path']):
                     os.remove(dataset['file_path'])
-                    
+                
                 return True
             else:
                 # Normal MongoDB case
@@ -741,7 +774,7 @@ class DatasetService:
                 # Delete uploaded file if it exists
                 if dataset.get('file_path') and os.path.exists(dataset['file_path']):
                     os.remove(dataset['file_path'])
-                    
+                
                 return True
         except Exception as e:
             print(f"Error deleting dataset: {str(e)}")

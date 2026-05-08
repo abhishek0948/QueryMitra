@@ -1,0 +1,55 @@
+# Python
+__pycache__/*
+*/__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+Backend/.env
+*.venv
+.env
+venv
+*.egg-info/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Node.js
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+docker-compose.override.yml
+
+# Frontend
+Frontend/.env
+
+# Uploads and Outputs
+Backend/uploads/
+Outputs/
+
+# Misc
+*.sqlite3
+*.db
+*.bak
+*.swp
+*.swo
+*.tmp
+
+# Ignore local settings
+Backend/config.py
