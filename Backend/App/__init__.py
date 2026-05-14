@@ -17,8 +17,12 @@ def create_app():
     Config.validate_config()
     
     # Enable CORS with proper configuration for JWT authentication
-    CORS(app, 
-         origins=["http://localhost:3000", "http://localhost:5173"],
+    CORS(app,
+         origins=[
+             "http://localhost:3000",
+             "http://localhost:5173",
+             r"https://.*\.onrender\.com",  # allow any Render-hosted frontend
+         ],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization"],
          supports_credentials=True,

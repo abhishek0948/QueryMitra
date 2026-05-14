@@ -52,4 +52,4 @@ Outputs/
 *.tmp
 
 # Ignore local settings
-Backend/config.py
+# Backend/config.py  ← removed: file is now safe to commit (no hardcoded secrets)
