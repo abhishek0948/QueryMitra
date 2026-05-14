@@ -137,82 +137,62 @@ def get_admin_stats():
 @bp.route('/datasets/<dataset_id>/download', methods=['GET'])
 @admin_required()
 def download_dataset(dataset_id):
-    """Download a dataset file (Admin only)."""
+    """Download a dataset as CSV reconstructed from MongoDB (Admin only)."""
     try:
-        datasets_collection = current_app.db['datasets']
-        
-        # Get dataset information
-        dataset = datasets_collection.find_one({'id': dataset_id})
-        if not dataset:
-            return jsonify({'error': 'Dataset not found'}), 404
-        
-        # Get the filename (strip directory prefix if stored as full/relative path)
-        filename = dataset.get('filename')
-        if not filename:
-            return jsonify({'error': 'Dataset filename not found in database'}), 404
-        
-        base_filename = os.path.basename(filename)
-        
-        # Always resolve to absolute path
-        upload_folder = os.path.abspath(current_app.config['UPLOAD_FOLDER'])
-        file_path = os.path.join(upload_folder, base_filename)
-        
-        print(f"Stored filename: {filename}")        # Debug log
-        print(f"Upload folder (abs): {upload_folder}") # Debug log
-        print(f"Resolved file path: {file_path}")      # Debug log
-        
-        if not os.path.exists(file_path):
-            return jsonify({'error': f'Dataset file not found at: {file_path}'}), 404
-        
-        # Send the file
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=base_filename,
-            mimetype='text/csv'
+        import io
+        import csv
+        from flask import Response
+        from App.services.dataset_service import DatasetService
+
+        dataset_service = DatasetService()
+
+        # Load records from MongoDB (decrypted)
+        records = dataset_service.load_dataset_records(dataset_id)
+        if not records:
+            return jsonify({'error': 'Dataset not found or has no data'}), 404
+
+        # Build CSV in memory
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=records[0].keys())
+        writer.writeheader()
+        writer.writerows(records)
+        output.seek(0)
+
+        filename = f"dataset_{dataset_id}.csv"
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
         )
-        
+
     except Exception as e:
-        print(f"Error downloading dataset: {str(e)}")  # Debug log
+        print(f"Error downloading dataset: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/datasets/<dataset_id>/preview', methods=['GET'])
 @admin_required()
 def preview_dataset(dataset_id):
-    """Preview dataset content (Admin only)."""
+    """Preview dataset content from MongoDB (Admin only)."""
     try:
-        datasets_collection = current_app.db['datasets']
-        
-        # Get dataset information
-        dataset = datasets_collection.find_one({'id': dataset_id})
-        if not dataset:
-            return jsonify({'error': 'Dataset not found'}), 404
-        
-        # Get the file path (strip directory prefix if stored as full/relative path)
-        raw_filename = dataset.get('filename', '')
-        base_filename = os.path.basename(raw_filename)
-        
-        # Always resolve to absolute path
-        upload_folder = os.path.abspath(current_app.config['UPLOAD_FOLDER'])
-        file_path = os.path.join(upload_folder, base_filename)
-        
-        print(f"Resolved preview path: {file_path}")  # Debug log
-        
-        if not os.path.exists(file_path):
-            return jsonify({'error': f'Dataset file not found at: {file_path}'}), 404
-        
-        # Read first 100 rows for preview
-        import pandas as pd
-        df = pd.read_csv(file_path, nrows=100)
-        
+        from App.services.dataset_service import DatasetService
+
+        dataset_service = DatasetService()
+
+        # Load records from MongoDB (decrypted)
+        records = dataset_service.load_dataset_records(dataset_id)
+        if not records:
+            return jsonify({'error': 'Dataset not found or has no data'}), 404
+
+        columns = list(records[0].keys()) if records else []
         preview_data = {
-            'columns': df.columns.tolist(),
-            'rows': df.head(20).to_dict('records'),  # First 20 rows
-            'total_rows_in_file': len(df),
-            'total_columns': len(df.columns)
+            'columns': columns,
+            'rows': records[:20],          # First 20 rows
+            'total_rows_in_file': len(records),
+            'total_columns': len(columns)
         }
-        
+
         return jsonify(preview_data), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
